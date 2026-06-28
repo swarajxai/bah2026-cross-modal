@@ -235,3 +235,4 @@ outputs/projector.pt
 !outputs/extract.log
 !outputs/train_v5.log
 !outputs/server.log
+outputs/*_old.npz
