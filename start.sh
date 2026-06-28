@@ -8,11 +8,15 @@ echo "[startup] BAH 2026 Cross-Modal Retrieval"
 echo "==========================================="
 echo "[startup] $(date)"
 
-# 1. Download model weights from HF Hub
+# 1. Ensure output directory exists (may be wiped on restart)
+mkdir -p /app/outputs
+chmod 777 /app/outputs
+
+# 2. Download model weights from HF Hub
 echo "[startup] downloading model weights..."
 python -m webapp.download_weights || echo "[startup] WARNING: download had errors, continuing anyway"
 
-# 2. Verify weights (don't fail if missing — gunicorn will report error)
+# 3. Verify weights (don't fail if missing — gunicorn will report error)
 echo "[startup] verifying outputs..."
 ls -la /app/outputs/ 2>/dev/null || echo "[startup] no outputs dir"
 
