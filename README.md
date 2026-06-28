@@ -2,7 +2,7 @@
 title: BAH 2026 Cross-Modal Satellite Image Retrieval
 emoji: 🛰️
 colorFrom: blue
-colorTo: orange
+colorTo: red
 sdk: docker
 app_port: 7860
 pinned: false
