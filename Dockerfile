@@ -48,15 +48,9 @@ ENV PORT=7860
 # Ensure huggingface_hub available (for runtime weight download)
 RUN pip install --no-cache-dir huggingface_hub
 
-# Run gunicorn on port 7860 (HF Spaces standard)
-# Download model weights from HF Hub first, then start server
-CMD exec python -m webapp.download_weights && \
-        gunicorn \
-        --bind 0.0.0.0:${PORT} \
-        --workers 1 \
-        --threads 4 \
-        --timeout 180 \
-        --graceful-timeout 60 \
-        --access-logfile - \
-        --error-logfile - \
-        webapp.app:app
+# Make startup script executable
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh
+
+# Run via startup script: download weights, then gunicorn
+CMD ["/app/start.sh"]

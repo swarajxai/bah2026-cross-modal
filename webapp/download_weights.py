@@ -80,6 +80,8 @@ for fname in FILES:
 
 if missing:
     print(f"[hf-download] WARNING: missing {missing}", flush=True)
-    sys.exit(1)
+    print("[hf-download] continuing anyway (gunicorn will start and report error)", flush=True)
+    # Don't exit - let gunicorn start so logs are visible
+    sys.exit(0)
 
 print("[hf-download] all weights ready", flush=True)
