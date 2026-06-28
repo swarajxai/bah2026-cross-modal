@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SATELLITE INTELLIGENCE WORKSTATION // CROSS-MODAL RETRIEVAL</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=JetBrains+Mono:wght@400;500;700&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<!-- =========== GLOBAL CRT OVERLAY =========== -->
+<div class="crt-scanlines"></div>
+<div class="crt-noise"></div>
+<div class="crt-vignette"></div>
+
+<!-- =========== TOP STATUS BAR =========== -->
+<header class="topbar">
+  <div class="topbar-section topbar-left">
+    <span class="brand">◉ SATELLITE INTELLIGENCE WORKSTATION</span>
+    <span class="brand-sub">v2.6.1986 // BUILD 19860101</span>
+  </div>
+  <div class="topbar-section topbar-center">
+    <span class="stat-label">MISSION:</span>
+    <span class="stat-value" id="mission">CROSS-MODAL SATELLITE RETRIEVAL SYSTEM</span>
+  </div>
+  <div class="topbar-section topbar-right">
+    <span class="stat-pill"><span class="dot dot-green"></span>MODEL: <b id="modelStatus">RESNET-50</b></span>
+    <span class="stat-pill"><span class="dot dot-green"></span>GPU: <b id="gpuUsage">00%</b></span>
+    <span class="stat-pill"><span class="dot dot-green"></span>EMB: <b id="embDim">256-D</b></span>
+    <span class="stat-pill"><span class="dot dot-green"></span>DB: <b id="dbSize">0</b></span>
+    <span class="stat-pill"><span class="dot dot-green"></span>FPS: <b id="fps">0.0</b></span>
+    <span class="stat-pill"><span class="dot dot-green"></span>INF: <b id="infTime">0.00ms</b></span>
+    <span class="stat-pill"><span class="dot dot-amber blink"></span>UTC <b id="utcClock">--:--:--</b></span>
+  </div>
+</header>
+
+<!-- =========== MAIN GRID WORKSTATION =========== -->
+<main class="workstation">
+
+  <!-- ============ LEFT PANEL: QUERY METADATA ============ -->
+  <aside class="panel panel-left">
+    <div class="panel-header">
+      <span class="panel-tag">01</span>
+      <span class="panel-title">QUERY METADATA</span>
+      <span class="panel-status" id="queryStatus">STANDBY</span>
+    </div>
+
+    <div class="panel-body">
+      <div class="field-group">
+        <div class="field">
+          <span class="field-label">QUERY IMAGE</span>
+          <div id="dropzone" class="dropzone">
+            <input type="file" id="file" accept=".tif,.tiff,.png,.jpg,.jpeg" hidden>
+            <div class="dz-empty">
+              <div class="dz-ascii">+----------+</div>
+              <div class="dz-ascii">| NO IMAGE |</div>
+              <div class="dz-ascii">+----------+</div>
+              <div class="dz-action">&gt; DRAG/DROP OR CLICK</div>
+              <div class="dz-ext">.TIF / .PNG / .JPG</div>
+            </div>
+            <div class="dz-loaded" style="display:none">
+              <img id="previewImg" alt="query">
+              <div class="dz-corner tl"></div>
+              <div class="dz-corner tr"></div>
+              <div class="dz-corner bl"></div>
+              <div class="dz-corner br"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <span class="field-label">METADATA</span>
+        <div class="kv-grid" id="metaKV">
+          <div class="kv-row"><span class="k">SENSOR TYPE</span><span class="v" id="metaSensor">—</span></div>
+          <div class="kv-row"><span class="k">IMAGE SIZE</span><span class="v" id="metaSize">—</span></div>
+          <div class="kv-row"><span class="k">DIMENSIONS</span><span class="v" id="metaDims">—</span></div>
+          <div class="kv-row"><span class="k">CHANNELS</span><span class="v" id="metaChannels">—</span></div>
+          <div class="kv-row"><span class="k">EMBEDDING</span><span class="v" id="metaEmb">256-D</span></div>
+          <div class="kv-row"><span class="k">FILE SIZE</span><span class="v" id="metaFileSize">—</span></div>
+          <div class="kv-row"><span class="k">ACQ. TIME</span><span class="v" id="metaAcqTime">—</span></div>
+          <div class="kv-row"><span class="k">FILENAME</span><span class="v" id="metaFilename">—</span></div>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <span class="field-label">SELECT SENSOR</span>
+        <div class="check-list" id="sensorList">
+          <label class="check-row active" data-val="">
+            <span class="check-mark">[X]</span>
+            <span class="check-text">ANY MODALITY</span>
+          </label>
+          <label class="check-row" data-val="optical">
+            <span class="check-mark">[ ]</span>
+            <span class="check-text">OPTICAL (RGB)</span>
+          </label>
+          <label class="check-row" data-val="sar">
+            <span class="check-mark">[ ]</span>
+            <span class="check-text">SAR (RADAR)</span>
+          </label>
+          <label class="check-row" data-val="ms">
+            <span class="check-mark">[ ]</span>
+            <span class="check-text">MULTISPECTRAL</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <span class="field-label">RETRIEVAL COUNT</span>
+        <div class="knob-row" id="kRow">
+          <button type="button" class="knob" data-val="5">05</button>
+          <button type="button" class="knob active" data-val="10">10</button>
+          <button type="button" class="knob" data-val="20">20</button>
+        </div>
+      </div>
+
+      <div class="field-group button-group">
+        <button id="retrieveBtn" class="hw-btn primary" disabled>
+          <span class="hw-btn-led"></span>
+          <span class="hw-btn-label">[ START RETRIEVAL ]</span>
+        </button>
+        <div class="btn-row-2">
+          <button class="hw-btn" id="clearBtn">
+            <span class="hw-btn-led"></span>
+            <span>[ CLEAR ]</span>
+          </button>
+          <button class="hw-btn" id="exportBtn">
+            <span class="hw-btn-led"></span>
+            <span>[ EXPORT ]</span>
+          </button>
+        </div>
+        <div class="btn-row-3">
+          <button class="hw-btn small" data-mod="optical">
+            <span class="hw-btn-led"></span>
+            <span>RDM:OPT</span>
+          </button>
+          <button class="hw-btn small" data-mod="ms">
+            <span class="hw-btn-led"></span>
+            <span>RDM:MS</span>
+          </button>
+          <button class="hw-btn small" data-mod="sar">
+            <span class="hw-btn-led"></span>
+            <span>RDM:SAR</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ CENTER: VIEWPORT + CHARTS ============ -->
+  <section class="panel panel-center">
+
+    <!-- VIEWPORT -->
+    <div class="viewport-block">
+      <div class="panel-header">
+        <span class="panel-tag">02</span>
+        <span class="panel-title">SATELLITE VIEWPORT</span>
+        <span class="panel-status" id="viewportStatus">LIVE FEED</span>
+      </div>
+      <div class="viewport" id="viewport">
+        <div class="viewport-grid"></div>
+        <div class="viewport-corner tl"></div>
+        <div class="viewport-corner tr"></div>
+        <div class="viewport-corner bl"></div>
+        <div class="viewport-corner br"></div>
+        <img id="viewportImg" alt="" style="display:none">
+        <div class="viewport-empty" id="viewportEmpty">
+          <div class="vp-ascii">
+▓▒░ SIGNAL ACQUISITION ░▒▓
+<br><br>
+&gt; AWAITING QUERY IMAGE
+<br>
+&gt; UPLOAD FILE TO BEGIN
+<br>
+&gt; OR SELECT RANDOM SAMPLE
+          </div>
+        </div>
+        <div class="viewport-radar" id="viewportRadar"></div>
+        <div class="viewport-cursor">
+          <span class="cursor-x">X:+000.000</span>
+          <span class="cursor-y">Y:+000.000</span>
+        </div>
+        <div class="viewport-overlay-info">
+          <span>BAND: <b id="vpBand">RGB</b></span>
+          <span>ZOOM: <b id="vpZoom">100%</b></span>
+        </div>
+      </div>
+      <div class="viewport-controls">
+        <span class="vp-mode active" data-band="rgb">[RGB]</span>
+        <span class="vp-mode" data-band="infrared">[INFRARED]</span>
+        <span class="vp-mode" data-band="sar">[SAR]</span>
+        <span class="vp-mode" data-band="falsecolor">[FALSE COLOR]</span>
+        <span class="vp-divider"></span>
+        <span class="vp-mode" id="toggleGrid">[GRID ON]</span>
+        <span class="vp-mode" id="zoomIn">[+]</span>
+        <span class="vp-mode" id="zoomOut">[-]</span>
+      </div>
+    </div>
+
+    <!-- HISTOGRAM + CHARTS -->
+    <div class="charts-row">
+      <div class="chart-block">
+        <div class="panel-header tight">
+          <span class="panel-tag small">A</span>
+          <span class="panel-title small">EMBEDDING SPACE (PCA)</span>
+        </div>
+        <canvas id="chartEmbedding" class="chart-canvas"></canvas>
+        <div class="chart-legend">
+          <span><span class="leg-dot" style="background:#2cff88"></span>OPTICAL</span>
+          <span><span class="leg-dot" style="background:#ffb800"></span>MULTISPECTRAL</span>
+          <span><span class="leg-dot" style="background:#ff2c6d"></span>SAR</span>
+          <span><span class="leg-dot blink" style="background:#fff"></span>QUERY</span>
+        </div>
+      </div>
+
+      <div class="chart-block">
+        <div class="panel-header tight">
+          <span class="panel-tag small">B</span>
+          <span class="panel-title small">SIMILARITY DISTRIBUTION</span>
+        </div>
+        <canvas id="chartSim" class="chart-canvas"></canvas>
+      </div>
+
+      <div class="chart-block">
+        <div class="panel-header tight">
+          <span class="panel-tag small">C</span>
+          <span class="panel-title small">RETRIEVAL TIMELINE</span>
+        </div>
+        <canvas id="chartTimeline" class="chart-canvas"></canvas>
+      </div>
+    </div>
+
+    <div class="charts-row">
+      <div class="chart-block half">
+        <div class="panel-header tight">
+          <span class="panel-tag small">D</span>
+          <span class="panel-title small">CONFIDENCE METER</span>
+        </div>
+        <div class="confidence-meter">
+          <div class="cm-track">
+            <div class="cm-fill" id="cmFill"></div>
+            <div class="cm-ticks">
+              <span>0</span><span>.25</span><span>.5</span><span>.75</span><span>1</span>
+            </div>
+          </div>
+          <div class="cm-labels">
+            <span>MIN</span><span>MAX</span>
+          </div>
+        </div>
+      </div>
+      <div class="chart-block half">
+        <div class="panel-header tight">
+          <span class="panel-tag small">E</span>
+          <span class="panel-title small">VECTOR DISTANCE PLOT</span>
+        </div>
+        <canvas id="chartDistance" class="chart-canvas"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ RIGHT PANEL: INFERENCE CONSOLE ============ -->
+  <aside class="panel panel-right">
+    <div class="panel-header">
+      <span class="panel-tag">03</span>
+      <span class="panel-title">INFERENCE CONSOLE</span>
+      <span class="panel-status" id="consoleStatus">IDLE</span>
+    </div>
+
+    <div class="panel-body">
+
+      <div class="field-group">
+        <span class="field-label">EMBEDDING STATUS</span>
+        <div class="kv-grid">
+          <div class="kv-row"><span class="k">BACKBONE</span><span class="v" id="embBackbone">RESNET-50</span></div>
+          <div class="kv-row"><span class="k">PROJECTOR</span><span class="v" id="embProj">PER-MOD MLP</span></div>
+          <div class="kv-row"><span class="k">FEAT. DIM</span><span class="v" id="embFeatDim">2048</span></div>
+          <div class="kv-row"><span class="k">OUT DIM</span><span class="v" id="embOutDim">256</span></div>
+          <div class="kv-row"><span class="k">NORM</span><span class="v">L2</span></div>
+          <div class="kv-row"><span class="k">SIM.</span><span class="v">COSINE</span></div>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <span class="field-label">NEAREST NEIGHBOR SEARCH</span>
+        <div class="kv-grid">
+          <div class="kv-row"><span class="k">INDEX TYPE</span><span class="v">FAISS FLAT-IP</span></div>
+          <div class="kv-row"><span class="k">VECTORS</span><span class="v" id="nnVectors">0</span></div>
+          <div class="kv-row"><span class="k">SEARCH POOL</span><span class="v" id="nnPool">0</span></div>
+          <div class="kv-row"><span class="k">RETRIEVED</span><span class="v" id="nnRetrieved">0</span></div>
+          <div class="kv-row"><span class="k">STRATEGY</span><span class="v">5-STAGE</span></div>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <span class="field-label">VECTOR DATABASE</span>
+        <div class="kv-grid">
+          <div class="kv-row"><span class="k">DB SIZE</span><span class="v" id="vdbSize">0</span></div>
+          <div class="kv-row"><span class="k">CLASSES</span><span class="v" id="vdbClasses">0</span></div>
+          <div class="kv-row"><span class="k">MODALITIES</span><span class="v" id="vdbMods">3</span></div>
+          <div class="kv-row"><span class="k">PAIRS</span><span class="v" id="vdbPairs">0</span></div>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <span class="field-label">RETRIEVAL PROGRESS</span>
+        <div class="progress-bar" id="retrievalProgress">
+          <div class="pb-fill"></div>
+          <div class="pb-text">READY</div>
+        </div>
+        <div class="kv-grid" style="margin-top:8px">
+          <div class="kv-row"><span class="k">STAGE</span><span class="v" id="stageName">—</span></div>
+          <div class="kv-row"><span class="k">STATUS</span><span class="v" id="stageStatus">—</span></div>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <span class="field-label">CONSOLE OUTPUT</span>
+        <div class="console" id="console">
+          <div class="console-line"><span class="c-time">[00:00:00]</span> <span class="c-msg">[SYS] WORKSTATION ONLINE</span></div>
+          <div class="console-line"><span class="c-time">[00:00:00]</span> <span class="c-msg">[SYS] AWAITING QUERY...</span></div>
+        </div>
+      </div>
+
+    </div>
+  </aside>
+
+  <!-- ============ BOTTOM: RETRIEVED TILES ============ -->
+  <section class="panel panel-bottom">
+    <div class="panel-header">
+      <span class="panel-tag">04</span>
+      <span class="panel-title">RETRIEVED IMAGES</span>
+      <span class="panel-status" id="resultStatus">0 / 0 ITEMS</span>
+      <div class="panel-actions">
+        <span class="vp-mode active" data-view="grid">[GRID]</span>
+        <span class="vp-mode" data-view="list">[LIST]</span>
+        <span class="vp-mode" data-view="dense">[DENSE]</span>
+      </div>
+    </div>
+    <div id="results" class="retrieval-grid"></div>
+    <div class="result-summary" id="resultSummary" style="display:none">
+      <div class="rs-item"><span class="rs-k">QUERY MODALITY</span><span class="rs-v" id="rsQueryMod">—</span></div>
+      <div class="rs-item"><span class="rs-k">TARGET MODALITY</span><span class="rs-v" id="rsTargetMod">—</span></div>
+      <div class="rs-item"><span class="rs-k">DOMINANT CLASS</span><span class="rs-v" id="rsDominant">—</span></div>
+      <div class="rs-item"><span class="rs-k">PURITY</span><span class="rs-v" id="rsPurity">—</span></div>
+      <div class="rs-item"><span class="rs-k">RETRIEVAL TIME</span><span class="rs-v accent" id="rsTime">—</span></div>
+    </div>
+  </section>
+
+</main>
+
+<div id="ticker" class="ticker">
+  <div class="ticker-track">
+    <span>● SIGNAL LOCK</span><span>·</span>
+    <span>MULTISPECTRAL · OPTICAL · SAR</span><span>·</span>
+    <span>HACKATHON PROTOTYPE</span><span>·</span>
+    <span>EARTH OBSERVATION</span><span>·</span>
+    <span>CPU INFERENCE</span><span>·</span>
+    <span>RESNET-50 FEATURES</span><span>·</span>
+    <span>FAISS COSINE SEARCH</span><span>·</span>
+    <span>v2.6.1986</span><span>·</span>
+    <span>● SIGNAL LOCK</span><span>·</span>
+    <span>MULTISPECTRAL · OPTICAL · SAR</span><span>·</span>
+    <span>HACKATHON PROTOTYPE</span><span>·</span>
+    <span>EARTH OBSERVATION</span><span>·</span>
+    <span>CPU INFERENCE</span><span>·</span>
+    <span>RESNET-50 FEATURES</span><span>·</span>
+    <span>FAISS COSINE SEARCH</span><span>·</span>
+    <span>v2.6.1986</span><span>·</span>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

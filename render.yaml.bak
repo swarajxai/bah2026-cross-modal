@@ -1,0 +1,22 @@
+# Render.com service config
+# Place this file at repo root; Render will auto-detect it for "Infrastructure as Code" deploys.
+
+services:
+  - type: web
+    name: bah2026-cross-modal
+    runtime: docker
+    plan: free                 # 1 vCPU, 512 MB RAM, sleeps after 15 min inactivity
+    region: oregon
+    branch: main
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: PORT
+        value: "10000"
+      - key: WEB_CONCURRENCY
+        value: "1"
+      - key: GUNICORN_CMD_ARGS
+        value: "--timeout 180 --graceful-timeout 60"

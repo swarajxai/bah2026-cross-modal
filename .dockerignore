@@ -1,0 +1,66 @@
+# Render build ignore — keep image small, don't ship datasets/source junk
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+.venv/
+venv/
+env/
+
+# Don't ship the 90 GB datasets in the image
+EuroSAT/
+Sentinel/
+*.zip
+
+# Don't ship backup weights (keep just current + 1 backup)
+outputs/backup_v1/
+outputs/backup_v4/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Logs (not needed in container)
+*.log
+
+# Env files (never commit secrets)
+.env
+.env.local
+
+# Test artifacts
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Training scripts not needed at runtime
+scripts/train_projectors*.py
+scripts/extract_features*.py
+scripts/build_colab*.py
+scripts/upload_to_hf.py
+scripts/build_presentation.py
+scripts/colab_transfer.py
+scripts/activate_v6.py
+scripts/run.bat
+
+# Colab-only files
+colab/
+
+# Presentation content not needed at runtime
+PRESENTATION_CONTENT.md
+COLAB_RUN_V6.md
+COLAB_GUIDE.md
+COLAB_GPU_TRAINING.md
+CHEATSHEET.md
+colab_train.py
+
+# Backups folder
+backup_*/

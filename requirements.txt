@@ -1,0 +1,33 @@
+# BAH 2026 — deployment requirements
+# Pinned versions for reproducible builds (Render Docker — CPU free tier)
+
+# Use PyTorch CPU wheels (Render free tier has no CUDA)
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+# Core
+numpy>=1.24,<2.0
+pillow>=10.0
+tqdm>=4.65
+
+# Deep Learning — CPU-only (Render free tier)
+torch==2.3.1
+torchvision==0.18.1
+
+# Pretrained backbones
+timm>=0.9,<1.0
+
+# Image IO
+tifffile>=2023.7
+opencv-python-headless>=4.8
+
+# Retrieval
+faiss-cpu>=1.7.4
+scikit-learn>=1.3
+
+# Web
+flask>=3.0
+flask-cors>=4.0
+gunicorn>=21.2
+
+# Eval (optional, for offline evaluation only)
+matplotlib>=3.7
