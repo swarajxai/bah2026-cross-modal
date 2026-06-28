@@ -300,6 +300,9 @@ body, body * {
   border: 1px solid transparent;
 }
 .check-row:hover { background: var(--panel-3); }
+.check-row:focus { outline: 1px solid var(--amber); outline-offset: -1px; }
+.check-row:focus:not(:focus-visible) { outline: none; }
+.check-row[role="button"] { user-select: none; -webkit-user-select: none; }
 .check-row.active {
   background: var(--panel-3);
   border-color: var(--border);

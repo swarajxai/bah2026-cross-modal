@@ -177,16 +177,32 @@ function handleFile(f) {
 // =================================================================
 // SENSOR SELECT (checklist)
 // =================================================================
+function selectSensorRow(row) {
+  // Deactivate all rows in this list
+  document.querySelectorAll('#sensorList .check-row').forEach(r => {
+    r.classList.remove('active');
+    const m = r.querySelector('.check-mark');
+    if (m) m.textContent = '[ ]';
+  });
+  row.classList.add('active');
+  const m = row.querySelector('.check-mark');
+  if (m) m.textContent = '[X]';
+  selectedTarget = row.dataset.val || '';
+  log('CFG', `TARGET SENSOR SET: ${selectedTarget || 'ANY'}`, 'info');
+}
 document.querySelectorAll('#sensorList .check-row').forEach(row => {
-  row.addEventListener('click', () => {
-    document.querySelectorAll('#sensorList .check-row').forEach(r => {
-      r.classList.remove('active');
-      r.querySelector('.check-mark').textContent = '[ ]';
-    });
-    row.classList.add('active');
-    row.querySelector('.check-mark').textContent = '[X]';
-    selectedTarget = row.dataset.val || '';
-    log('CFG', `TARGET SENSOR SET: ${selectedTarget || 'ANY'}`, 'info');
+  // Click handler (works for both mouse and touch)
+  row.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    selectSensorRow(e.currentTarget);
+  });
+  // Keyboard handler (Enter / Space)
+  row.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      selectSensorRow(e.currentTarget);
+    }
   });
 });
 
