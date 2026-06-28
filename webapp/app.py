@@ -63,6 +63,9 @@ class RetrievalService:
         self.gallery_mods = meta["modalities"]
         self.gallery_labels = meta["labels"]
         self.gallery_ids = meta["ids"]
+        # Optional embedded thumbnails (base64 PNG strings) — present when
+        # the meta npz was produced with embed_thumbnails.py
+        self.gallery_thumbs = meta["thumbs"] if "thumbs" in meta.files else None
 
         # Projectors — auto-detect v1 vs v2 vs v6 from state_dict keys.  Do this BEFORE
         # building the backbone so we can also pick the right backbone.
@@ -223,6 +226,7 @@ class RetrievalService:
         mod = str(self.gallery_mods[idx])
         return {
             "rank": None,
+            "idx": int(idx),  # used by /api/thumb?idx=... for embedded thumbnails
             "path": str(self.gallery_paths[idx]),
             "modality": mod,
             "modality_label": MODALITY_LABEL.get(mod, mod),
@@ -461,33 +465,62 @@ def retrieve():
 
 @app.route("/api/thumb")
 def thumb():
+    """Serve thumbnail.  Priority:
+       1) embedded base64 PNG (gallery_meta.npz 'thumbs' field) — used in cloud deploys
+       2) read from local file (used in local dev)
+       3) return 1x1 placeholder
+    """
     p = request.args.get("path", "")
-    if not p or not os.path.isfile(p):
-        abort(404)
-    try:
-        if p.lower().endswith((".tif", ".tiff")):
-            arr = tifffile.imread(p)
-            if arr.ndim == 2:
-                arr = np.stack([arr] * 3, axis=-1)
-            elif arr.shape[-1] >= 3:
-                arr = arr[..., :3]
-        else:
-            img = cv2.imread(p, cv2.IMREAD_COLOR)
-            if img is None:
-                abort(404)
-            arr = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        if arr.dtype != np.uint8:
-            mn, mx = float(arr.min()), float(arr.max())
-            if mx > mn:
-                arr = (arr - mn) / (mx - mn) * 255
-            arr = arr.astype(np.uint8)
-        pil = Image.fromarray(arr).resize((200, 200), Image.BILINEAR)
-        buf = io.BytesIO()
-        pil.save(buf, format="PNG")
-        buf.seek(0)
-        return send_file(buf, mimetype="image/png")
-    except Exception as e:
-        abort(404)
+    idx = request.args.get("idx", "")
+    svc = get_service()
+    # 1) Try embedded thumbnail by index
+    if idx:
+        try:
+            i = int(idx)
+            thumbs = getattr(svc, "gallery_thumbs", None)
+            if thumbs is not None and 0 <= i < len(thumbs):
+                data = thumbs[i]
+                if isinstance(data, str) and data:
+                    import base64, io
+                    buf = io.BytesIO(base64.b64decode(data))
+                    return send_file(buf, mimetype="image/png")
+        except Exception:
+            pass
+    # 2) Fallback to local file
+    if p and os.path.isfile(p):
+        try:
+            if p.lower().endswith((".tif", ".tiff")):
+                arr = tifffile.imread(p)
+                if arr.ndim == 2:
+                    arr = np.stack([arr] * 3, axis=-1)
+                elif arr.shape[-1] >= 3:
+                    arr = arr[..., :3]
+            else:
+                img = cv2.imread(p, cv2.IMREAD_COLOR)
+                if img is None:
+                    abort(404)
+                arr = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            if arr.dtype != np.uint8:
+                mn, mx = float(arr.min()), float(arr.max())
+                if mx > mn:
+                    arr = (arr - mn) / (mx - mn) * 255
+                arr = arr.astype(np.uint8)
+            pil = Image.fromarray(arr).resize((200, 200), Image.BILINEAR)
+            buf = io.BytesIO()
+            pil.save(buf, format="PNG")
+            buf.seek(0)
+            return send_file(buf, mimetype="image/png")
+        except Exception:
+            abort(404)
+    # 3) Placeholder
+    return send_file(io.BytesIO(PLACEHOLDER_PNG), mimetype="image/png")
+
+
+PLACEHOLDER_PNG = (
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+    b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xfc\xff"
+    b"\xff?\x00\x05\xfe\x02\xfe\xa3\xee\xff\xff\x00\x00\x00\x00IEND\xaeB`\x82"
+)
 
 
 @app.route("/api/raw")

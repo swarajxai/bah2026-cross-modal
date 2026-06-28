@@ -379,7 +379,10 @@ function renderResults(j) {
   j.results.forEach((r, idx) => {
     const tile = document.createElement('div');
     tile.className = 'tile';
-    const url = '/api/thumb?path=' + encodeURIComponent(r.path);
+    // Prefer embedded thumbnails (idx) — works on cloud deploys without local paths
+    const url = (r.idx !== undefined && r.idx !== null)
+        ? '/api/thumb?idx=' + encodeURIComponent(r.idx)
+        : '/api/thumb?path=' + encodeURIComponent(r.path);
     const sim = Math.max(0, Math.min(100, r.score * 100));
     const modInfo = MODALITY[r.modality] || MODALITY.optical;
     tile.innerHTML = `
