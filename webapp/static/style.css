@@ -683,6 +683,37 @@ body, body * {
   letter-spacing: 0.5px;
   border: 1px solid var(--amber);
 }
+.tile-via {
+  position: absolute;
+  bottom: 2px; left: 2px;
+  background: rgba(0,0,0,0.75);
+  font-size: 7px;
+  padding: 1px 4px;
+  letter-spacing: 0.5px;
+  font-family: 'JetBrains Mono', monospace;
+  border: 1px solid;
+}
+.tile-via-cross_modal {
+  color: #2cff88;
+  border-color: #2cff88;
+  box-shadow: 0 0 6px rgba(44,255,136,0.4);
+}
+.tile-via-paired {
+  color: #5eead4;
+  border-color: #5eead4;
+}
+.tile-via-relaxed {
+  color: var(--text-dim);
+  border-color: var(--text-dim);
+}
+.tile-via-class_fallback {
+  color: var(--amber);
+  border-color: var(--amber);
+}
+.tile-via-universal {
+  color: #ef4444;
+  border-color: #ef4444;
+}
 .tile-meta {
   padding: 4px 6px;
   display: grid;

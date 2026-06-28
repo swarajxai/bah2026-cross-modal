@@ -385,12 +385,17 @@ function renderResults(j) {
         : '/api/thumb?path=' + encodeURIComponent(r.path);
     const sim = Math.max(0, Math.min(100, r.score * 100));
     const modInfo = MODALITY[r.modality] || MODALITY.optical;
+    // Visual hint for retrieval method (cross_modal / paired / direct / fallback)
+    const viaBadge = r.via && r.via !== 'direct'
+      ? `<div class="tile-via tile-via-${r.via}">${r.via.replace('_', ' ').toUpperCase()}</div>`
+      : '';
     tile.innerHTML = `
       <div class="tile-corner">#${r.rank.toString().padStart(2,'0')}</div>
       <div class="tile-img-wrap">
         <img src="${url}" alt="result" loading="lazy"
              onerror="this.style.opacity=0.2; this.alt='N/A'">
         <div class="tile-band">${modInfo.short}</div>
+        ${viaBadge}
       </div>
       <div class="tile-meta">
         <div class="tile-meta-row"><span class="mk">ID</span><span class="mv">${(r.id || '').slice(-10)}</span></div>

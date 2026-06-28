@@ -268,11 +268,75 @@ class RetrievalService:
             return gp_basename == query_basename
 
         def passes_target_filter(idx):
-            if not (target_modality and target_modality != ""):
+            if not (target_modality and target_modality != "" and target_modality != "any"):
                 return True
             return str(self.gallery_mods[idx]) == target_modality
 
+        # "any" is the cross-modal / diversity preset: pull items from
+        # MULTIPLE modalities so the user sees actual cross-modal retrieval
+        # rather than same-modality dominance.
+        is_any = target_modality in (None, "", "any")
+        # Modality quotas for the cross-modal preset (must sum to <= k).
+        # Empty entries for the query modality itself — we still show 1-2
+        # same-modality hits so the user gets a sanity-check alongside.
+        if is_any:
+            other_modalities = [m for m in self.modalities if str(m) != modality]
+            # Per-non-query modality quota = max(1, k // len(other_modalities))
+            per_mod = max(1, k // max(1, len(other_modalities)))
+            quota = {m: per_mod for m in other_modalities}
+            same_mod_quota = max(1, k // 3)  # up to 1/3 same-modality sanity hits
+        elif target_modality and target_modality != modality:
+            quota = {target_modality: k}
+            same_mod_quota = 0
+        else:
+            quota = {target_modality: k}
+            same_mod_quota = 0
+        quota_count = {m: 0 for m in quota}
+        same_mod_count = 0
+
+        # ---------------- Stage 0 : cross-modal priority ----------------
+        # Walk the top-N nearest neighbours and use gallery_id pairing to
+        # fetch matched items in OTHER modalities.  This guarantees the
+        # result list contains cross-modal items even when the cosine
+        # ranking is dominated by same-modality hits.
+        if is_any and other_modalities:
+            seed_n = max(80, k * 10)  # look at the top-80 (or k*10) seeds
+            for idx, score in zip(I[0].tolist()[:seed_n], D[0].tolist()[:seed_n]):
+                if idx < 0 or idx in seen:
+                    continue
+                if is_self(idx):
+                    continue
+                seed_mod = str(self.gallery_mods[idx])
+                pair_id = str(self.gallery_ids[idx])
+                pair_indices = self._id_to_idx.get(pair_id, [])
+                for j in pair_indices:
+                    if j == idx or j in seen:
+                        continue
+                    if is_self(j):
+                        continue
+                    jmod = str(self.gallery_mods[j])
+                    if jmod not in quota:
+                        continue
+                    if quota_count[jmod] >= quota[jmod]:
+                        continue
+                    seen.add(j)
+                    quota_count[jmod] += 1
+                    r = self._make_result(j, score * 0.97, via="cross_modal")
+                    results.append(r)
+                    if len(results) >= k:
+                        break
+                    # stop early if all non-query quotas are full
+                    if all(quota_count[m] >= quota[m] for m in quota):
+                        break
+                if len(results) >= k:
+                    break
+                if all(quota_count[m] >= quota[m] for m in quota):
+                    break
+
         # ---------------- Stage 1 : direct retrieval ----------------
+        # When target is ANY we cap same-modality hits so diversity is
+        # preserved.  When target is a specific modality this is the
+        # primary pass (Stage 0 didn't add anything).
         for idx, score in zip(I[0].tolist(), D[0].tolist()):
             if idx < 0 or idx in seen:
                 continue
@@ -280,8 +344,13 @@ class RetrievalService:
                 continue
             if not passes_target_filter(idx):
                 continue
+            idx_mod = str(self.gallery_mods[idx])
+            if is_any and idx_mod == modality and same_mod_count >= same_mod_quota:
+                continue
             seen.add(idx)
             results.append(self._make_result(idx, score, via="direct"))
+            if idx_mod == modality:
+                same_mod_count += 1
             if len(results) >= k:
                 break
 
@@ -290,9 +359,12 @@ class RetrievalService:
         # use same-modality neighbours' gallery_id to find the *paired*
         # item in the target modality.  Same-modality retrieval is reliable,
         # so this is a robust cross-modal bridge.
+        # Also handles ANY-target case: fill missing modality quotas.
         need_paired = (
-            target_modality and target_modality != "" and target_modality != modality
-            and len(results) < k
+            len(results) < k and (
+                (target_modality and target_modality != "" and target_modality != "any" and target_modality != modality)
+                or (is_any and not all(quota_count[m] >= quota[m] for m in quota))
+            )
         )
         if need_paired:
             # walk the cosine-similarity ranking in order
@@ -306,16 +378,26 @@ class RetrievalService:
                 for j in pair_indices:
                     if j == idx or j in seen:
                         continue
-                    if str(self.gallery_mods[j]) != target_modality:
-                        continue
                     if is_self(j):
                         continue
+                    jmod = str(self.gallery_mods[j])
+                    if is_any:
+                        if jmod not in quota or quota_count[jmod] >= quota[jmod]:
+                            continue
+                        quota_count[jmod] += 1
+                    else:
+                        if jmod != target_modality:
+                            continue
                     seen.add(j)
                     seen.add(idx)  # consume the seed neighbour too
                     r = self._make_result(j, score * 0.95, via="paired")
                     results.append(r)
                     if len(results) >= k:
                         break
+                if len(results) >= k:
+                    break
+                if is_any and all(quota_count[m] >= quota[m] for m in quota):
+                    break
                 if len(results) >= k:
                     break
 
@@ -339,7 +421,9 @@ class RetrievalService:
         # the same class as the query's nearest neighbours but in the
         # target modality.  This always fills k if the gallery has k
         # items of (target_class, target_modality).
-        if len(results) < k and target_modality and target_modality != "":
+        # For ANY target, this fills any modality quotas that are still
+        # under quota_count[m].
+        if len(results) < k:
             # Determine the dominant query class from the top results we've
             # already collected (or from raw ranking).
             counts = {}
@@ -354,31 +438,50 @@ class RetrievalService:
             if counts:
                 # pick the most-common class
                 target_class = max(counts.items(), key=lambda kv: kv[1])[0]
-                pool = list(self._class_to_idx.get((target_class, target_modality), []))
-                # shuffle deterministically by ranking position
-                np.random.seed(int(z[0, 0] * 1e6) & 0xFFFFFFFF)
-                np.random.shuffle(pool)
-                for j in pool:
-                    if j in seen:
-                        continue
-                    if is_self(j):
-                        continue
-                    seen.add(j)
-                    # synthetic score that decreases with how many items we've taken
-                    rank_in_pool = len([r for r in results if r.get("via") == "class_fallback"])
-                    synthetic_score = max(0.05, 0.5 - rank_in_pool * 0.02)
-                    r = self._make_result(j, synthetic_score, via="class_fallback")
-                    r["fallback_class"] = IDX_TO_CLASS.get(target_class, str(target_class))
-                    results.append(r)
+                if is_any:
+                    target_mods = list(quota.keys())
+                else:
+                    target_mods = [target_modality]
+                for tmod in target_mods:
                     if len(results) >= k:
                         break
+                    if is_any and quota_count.get(tmod, 0) >= quota.get(tmod, 0):
+                        continue
+                    pool = list(self._class_to_idx.get((target_class, tmod), []))
+                    # shuffle deterministically by ranking position
+                    np.random.seed(int(z[0, 0] * 1e6) & 0xFFFFFFFF)
+                    np.random.shuffle(pool)
+                    for j in pool:
+                        if j in seen:
+                            continue
+                        if is_self(j):
+                            continue
+                        seen.add(j)
+                        if is_any:
+                            quota_count[tmod] = quota_count.get(tmod, 0) + 1
+                        # synthetic score that decreases with how many items we've taken
+                        rank_in_pool = len([r for r in results if r.get("via") == "class_fallback"])
+                        synthetic_score = max(0.05, 0.5 - rank_in_pool * 0.02)
+                        r = self._make_result(j, synthetic_score, via="class_fallback")
+                        r["fallback_class"] = IDX_TO_CLASS.get(target_class, str(target_class))
+                        results.append(r)
+                        if len(results) >= k:
+                            break
 
         # ---------------- Stage 5 : UNIVERSAL FALLBACK ----------------
         # Last resort: ANY gallery image in the target modality.
-        if len(results) < k and target_modality and target_modality != "":
+        # For ANY target we accept any modality to ensure k results.
+        if len(results) < k:
             for j, mod in enumerate(self.gallery_mods):
-                if str(mod) != target_modality or j in seen or is_self(j):
+                if j in seen or is_self(j):
                     continue
+                if is_any:
+                    if quota_count.get(str(mod), 0) >= quota.get(str(mod), 0):
+                        continue
+                    quota_count[str(mod)] = quota_count.get(str(mod), 0) + 1
+                else:
+                    if str(mod) != target_modality:
+                        continue
                 seen.add(j)
                 results.append(self._make_result(j, 0.0, via="universal"))
                 if len(results) >= k:
