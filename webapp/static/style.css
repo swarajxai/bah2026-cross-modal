@@ -679,12 +679,14 @@ body, body * {
 .tile-band {
   position: absolute;
   top: 2px; right: 2px;
-  background: rgba(0,0,0,0.6);
+  background: rgba(0,0,0,0.85);
   color: var(--amber);
-  font-size: 8px;
-  padding: 1px 3px;
-  letter-spacing: 0.5px;
-  border: 1px solid var(--amber);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 6px;
+  letter-spacing: 1px;
+  border: 2px solid var(--amber);
+  z-index: 2;
 }
 .tile-via {
   position: absolute;
@@ -754,6 +756,9 @@ body, body * {
   border-top: 1px solid var(--border);
   background: var(--panel-2);
 }
+@media (max-width: 1100px) {
+  .result-summary { grid-template-columns: repeat(3, 1fr); }
+}
 .rs-item {
   padding: 6px 10px;
   border-right: 1px solid var(--border-soft);
@@ -762,34 +767,11 @@ body, body * {
   gap: 2px;
 }
 .rs-item:last-child { border-right: none; }
+.rs-item-wide { grid-column: 1 / -1; border-right: none; }
+.rs-item-wide .rs-v { font-size: 13px; font-weight: 700; letter-spacing: 1px; }
 .rs-k { font-size: 9px; color: var(--text-dim); }
 .rs-v { font-size: 12px; color: var(--text-bright); font-weight: 600; }
 .rs-v.accent { color: var(--amber); }
-
-/* ===== TICKER ===== */
-.ticker {
-  position: fixed;
-  bottom: 0; left: 0; right: 0;
-  background: var(--panel);
-  border-top: 1px solid var(--border);
-  color: var(--text);
-  font-size: 10px;
-  letter-spacing: 2px;
-  padding: 4px 0;
-  overflow: hidden;
-  z-index: 50;
-}
-.ticker-track {
-  display: flex;
-  gap: 24px;
-  white-space: nowrap;
-  animation: ticker 50s linear infinite;
-  width: max-content;
-}
-@keyframes ticker {
-  0%   { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
-}
 
 /* ===== LOADING OVERLAY ===== */
 .loading-overlay {

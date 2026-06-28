@@ -378,6 +378,31 @@ function renderResults(j) {
     : 'ANY';
   $('rsTime').textContent = `${j.retrieval_time_ms.toFixed(2)} MS`;
 
+  // Modality-mix warning: if user picked a specific target modality but
+  // the result list contains items from OTHER modalities, show a banner
+  // so the user (and judges) can see at a glance whether the cross-modal
+  // retrieval worked.
+  const requestedMod = (j.target_modality_filter || '').toString().toLowerCase();
+  if (requestedMod && requestedMod !== 'any' && j.results && j.results.length) {
+    const sameCount = j.results.filter(r => (r.modality || '').toString().toLowerCase() === requestedMod).length;
+    const crossCount = j.results.length - sameCount;
+    const warn = $('rsModWarning');
+    if (warn) {
+      if (crossCount > 0) {
+        warn.textContent = `MIXED MODALITIES: ${sameCount} ${requestedMod.toUpperCase()} + ${crossCount} OTHER`;
+        warn.style.display = 'block';
+        warn.style.color = '#ffb800';
+      } else {
+        warn.textContent = `ALL ${j.results.length} RESULTS ARE ${requestedMod.toUpperCase()} ✓`;
+        warn.style.display = 'block';
+        warn.style.color = '#2cff88';
+      }
+    }
+  } else {
+    const warn = $('rsModWarning');
+    if (warn) warn.style.display = 'none';
+  }
+
   // class stats
   const counts = {};
   j.results.forEach(r => counts[r.class_name] = (counts[r.class_name] || 0) + 1);
@@ -410,7 +435,7 @@ function renderResults(j) {
       <div class="tile-img-wrap">
         <img src="${url}" alt="result" loading="lazy"
              onerror="this.style.opacity=0.2; this.alt='N/A'">
-        <div class="tile-band">${modInfo.short}</div>
+        <div class="tile-band" style="background:${modInfo.color}; color:#000; border-color:${modInfo.color};">${modInfo.short}</div>
         ${viaBadge}
       </div>
       <div class="tile-meta">
