@@ -219,8 +219,6 @@ __marimo__/
 
 colab/colab_pipeline_v6_hf.py
 
-colab/colab_pipeline_v6_hf.py
-
 # Heavy model artifacts — pulled from HF Hub at runtime (HF Spaces rejects >10MB files in git push)
 # See webapp/download_weights.py
 outputs/backup_v1/
@@ -232,7 +230,8 @@ outputs/gallery_meta.npz
 outputs/projector.pt
 # Keep small metadata only
 !outputs/eval.json
-!outputs/extract.log
-!outputs/train_v5.log
-!outputs/server.log
 outputs/*_old.npz
+outputs/*.log
+
+# Local screenshots (HF Space rejects binary files in git push)
+screenshots/
