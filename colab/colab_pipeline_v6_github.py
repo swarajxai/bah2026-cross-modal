@@ -19,22 +19,21 @@
 # ===================== 0. CONFIG =====================
 INSTALL = True
 
-# GitHub release URLS — 4 split parts
-# Example:  https://github.com/username/bah2026-data/releases/download/v1.0/BAH2026_full_part_aa
+# GitHub release URLS — 4 split parts (swarajxai/bah2026-data release v1.0)
 GITHUB_RELEASE_URLS = [
-    "https://github.com/YOUR_USERNAME/bah2026-data/releases/download/v1.0/BAH2026_full_part_aa",
-    "https://github.com/YOUR_USERNAME/bah2026-data/releases/download/v1.0/BAH2026_full_part_ab",
-    "https:///YOUR_USERNAME/bah2026-data/releases/download/v1.0/BAH2026_full_part_ac",
-    "https://github.com/YOUR_USERNAME/bah2026-data/releases/download/v1.0/BAH2026_full_part_ad",
+    "https://github.com/swarajxai/bah2026-data/releases/download/v1.0/BAH2026_full_part_aa",
+    "https://github.com/swarajxai/bah2026-data/releases/download/v1.0/BAH2026_full_part_ab",
+    "https://github.com/swarajxai/bah2026-data/releases/download/v1.0/BAH2026_full_part_ac",
+    "https://github.com/swarajxai/bah2026-data/releases/download/v1.0/BAH2026_full_part_ad",
 ]
 # After merging, this is the zip filename inside Colab
 MERGED_ZIP_NAME = "BAH2026_full.zip"
 
-# Training
+# Training — DINOv2 ViT-B/14 on T4 (15 GB VRAM)
 BACKBONE_NAME = "vit_base_patch14_dinov2.lvd142m"
 DINO_IMG_SIZE = 518
-EPOCHS = 50
-BATCH_SIZE = 384
+EPOCHS = 30            # 30 epochs T4 pe ~3.5-4 hours (vs 50 epochs = 6 hrs)
+BATCH_SIZE = 256       # 256 safe for T4 15GB with DINOv2-Base 518px (384 OOM risk)
 HIDDEN = 1024
 OUT_DIM = 256
 LR = 2e-3
@@ -412,6 +411,22 @@ def train_v6():
     sched = torch.optim.lr_scheduler.LambdaLR(optim, lr_lambda)
     emb_t = torch.from_numpy(embeddings).to(device)
 
+    # ----- Colab-disconnect-safe resume -----
+    # If a previous run saved a partial checkpoint, load it and continue.
+    CHECKPOINT_PATH = "/content/v6_resume.pt"
+    start_epoch = 0
+    best_val, best_state, best_ep = float("inf"), None, 0
+    if Path(CHECKPOINT_PATH).exists():
+        print(f"[resume] loading {CHECKPOINT_PATH}")
+        rc = torch.load(CHECKPOINT_PATH, map_location="cpu", weights_only=False)
+        for m in modalities:
+            projectors[m].load_state_dict(rc["projectors"][m])
+        optim.load_state_dict(rc["optim"])
+        sched.load_state_dict(rc["sched"])
+        start_epoch = rc["epoch"]
+        best_val, best_state, best_ep = rc["best_val"], rc["best_state"], rc["best_ep"]
+        print(f"[resume] resuming from epoch {start_epoch+1}, best_val={best_val:.4f} @ epoch {best_ep}")
+
     def fwd(batch):
         feats_b = emb_t[batch]
         mods_list = [items[i][1] for i in batch]
@@ -456,20 +471,31 @@ def train_v6():
             total += crit(z, lab, mo).item(); n += 1
         return total / max(1, n)
 
-    best_val, best_state, best_ep = float("inf"), None, 0
     t0 = time.time()
-    for epoch in range(EPOCHS):
+    for epoch in range(start_epoch, EPOCHS):
         tl = epoch_loss(train_pool, 80)
         vl = val_loss_fn()
         print(f"  v6 epoch {epoch+1:02d}/{EPOCHS}  train={tl:.4f}  val={vl:.4f}  lr={optim.param_groups[0]['lr']:.2e}  ({time.time()-t0:.0f}s)", flush=True)
         if vl < best_val:
             best_val = vl; best_ep = epoch + 1
             best_state = {m: {k: v.detach().cpu().clone() for k, v in projectors[m].state_dict().items()} for m in modalities}
+        # save resume checkpoint every epoch (overwrite)
+        torch.save({
+            "epoch": epoch + 1,
+            "projectors": {m: projectors[m].state_dict() for m in modalities},
+            "optim": optim.state_dict(),
+            "sched": sched.state_dict(),
+            "best_val": best_val, "best_state": best_state, "best_ep": best_ep,
+        }, CHECKPOINT_PATH)
     for m in modalities: projectors[m].load_state_dict(best_state[m])
     torch.save({"feat_dim": feat_dim, "hidden_dim": HIDDEN, "out_dim": OUT_DIM,
                 "modalities": modalities, "state_dict": best_state,
                 "_version": "v6_dinov2", "backbone": BACKBONE_NAME,
                 "best_val": best_val, "best_epoch": best_ep}, PROJECTOR_CKPT)
+    # also save embeddings alongside projector so deployment is self-contained
+    np.savez_compressed("/content/v6_embeddings.npz",
+                        embeddings=embeddings, labels=labels_arr,
+                        modalities=modalities_arr, paths=paths_arr, ids=ids_arr)
     print(f"[train-v6] saved best@{best_ep} val={best_val:.4f}  ({time.time()-t0:.0f}s)", flush=True)
     return projectors
 
@@ -578,7 +604,8 @@ def evaluate():
 evaluate()
 
 # ===================== 11. ZIP + DOWNLOAD =====================
-!zip -j -q {ZIP_OUTPUT} {PROJECTOR_CKPT} {FAISS_PATH} {META_PATH} {EVAL_JSON} {FEATURES_PATH}
+print(f"\n[zip] packaging v6 artifacts ...")
+!zip -j -q {ZIP_OUTPUT} {PROJECTOR_CKPT} {FAISS_PATH} {META_PATH} {EVAL_JSON} {FEATURES_PATH} /content/v6_embeddings.npz
 print(f"\n[done] v6 zip at {ZIP_OUTPUT}")
 _size_mb = os.path.getsize(ZIP_OUTPUT) / (1024*1024)
 print(f"[done] zip size: {_size_mb:.1f} MB")
