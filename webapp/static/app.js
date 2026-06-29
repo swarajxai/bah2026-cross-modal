@@ -373,9 +373,16 @@ function renderResults(j) {
 
   // summary
   $('rsQueryMod').textContent = j.query_modality_label;
-  $('rsTargetMod').textContent = j.target_modality_filter
-    ? `${j.target_modality_icon} ${j.target_modality_label || MODALITY[j.target_modality_filter].label}`
-    : 'ANY';
+  // Display target modality. Backend returns `target_modality_filter` like
+  // "ms" or "" (any). Convert to a friendly label via the MODALITY lookup
+  // table. Older deployments also returned target_modality_icon/label but
+  // newer ones may not, so we ignore those to avoid rendering "undefined".
+  if (j.target_modality_filter && MODALITY[j.target_modality_filter]) {
+    const m = MODALITY[j.target_modality_filter];
+    $('rsTargetMod').textContent = `${m.icon} ${m.label}`;
+  } else {
+    $('rsTargetMod').textContent = 'ANY MODALITY';
+  }
   $('rsTime').textContent = `${j.retrieval_time_ms.toFixed(2)} MS`;
 
   // Modality-mix warning: if user picked a specific target modality but
