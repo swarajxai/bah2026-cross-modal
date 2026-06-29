@@ -626,6 +626,47 @@ PLACEHOLDER_PNG = (
 )
 
 
+@app.route("/api/preview", methods=["POST"])
+def preview_upload():
+    """Render an uploaded query image the same way gallery thumbnails do.
+
+    Used by the frontend for .tif/.tiff uploads since browsers can't natively
+    decode TIFF via <img>. Returns a 256x256 PNG that visually matches the
+    gallery thumbnail for the same modality (MS uses bands 4-3-2 false-color,
+    optical is plain RGB, SAR is grayscale-repeated).
+    """
+    if "file" not in request.files:
+        return jsonify({"error": "no file"}), 400
+    f = request.files["file"]
+    raw = f.read()
+    if not raw:
+        return jsonify({"error": "empty file"}), 400
+    svc = get_service()
+    modality = svc.detect_modality(f.filename, raw)
+    # Write to a temp file so _read_image can decode any format (tifffile
+    # needs a real path or file-like object).  Use the original extension.
+    import tempfile
+    suffix = os.path.splitext(f.filename)[1] or ".bin"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        tmp.write(raw)
+        tmp_path = tmp.name
+    try:
+        rgb = _read_image(tmp_path, modality)   # HxWx3 uint8
+        # Resize to a small preview to keep payload < 50KB
+        pil = Image.fromarray(rgb).resize((256, 256), Image.BILINEAR)
+        buf = io.BytesIO()
+        pil.save(buf, format="PNG", optimize=True)
+        buf.seek(0)
+        return send_file(buf, mimetype="image/png")
+    except Exception as e:
+        return jsonify({"error": f"preview failed: {e}"}), 400
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+
+
 @app.route("/api/raw")
 def raw():
     """Serve the original image bytes (used by the 'try a sample' buttons)."""

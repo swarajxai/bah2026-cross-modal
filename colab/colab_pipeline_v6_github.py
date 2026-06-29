@@ -107,10 +107,36 @@ print(f"[unzip] done in {time.time()-t0:.0f}s")
 !ls /content/BAH2026/
 
 # ===================== 2. SCAN DATA =====================
-ROOT = Path("/content/BAH2026")
+# User confirmed: datasets extracted directly under /content/ (no wrapper folder)
+# /content/EuroSAT/  and  /content/Sentinel/  exist
+ROOT = Path("/content")
 EUROSAT = ROOT / "EuroSAT"
 SENTINEL = ROOT / "Sentinel"
-assert EUROSAT.exists() and SENTINEL.exists(), f"missing data dirs"
+
+# Verify they really exist before continuing
+if not (EUROSAT.exists() and SENTINEL.exists()):
+    print(f"[setup] ! expected /content/EuroSAT and /content/Sentinel — searching ...")
+    # Fallback: walk /content to find them
+    for cand in [Path("/content"), Path("/content/BAH2026_full")]:
+        if not cand.exists():
+            continue
+        for sub in [cand] + [p for p in cand.iterdir() if p.is_dir()]:
+            es, sn = sub / "EuroSAT", sub / "Sentinel"
+            if es.exists() and sn.exists():
+                ROOT = sub
+                EUROSAT = es
+                SENTINEL = sn
+                print(f"[setup] found datasets under {sub}")
+                break
+        if EUROSAT.exists() and SENTINEL.exists():
+            break
+
+assert EUROSAT.exists() and SENTINEL.exists(), \
+    f"missing data dirs: EUROSAT={EUROSAT} (exists={EUROSAT.exists()}), " \
+    f"SENTINEL={SENTINEL} (exists={SENTINEL.exists()})"
+print(f"[setup] using ROOT={ROOT}", flush=True)
+print(f"[setup] EUROSAT has {len(list(EUROSAT.iterdir()))} class folders", flush=True)
+print(f"[setup] SENTINEL has {len(list(SENTINEL.iterdir()))} class folders", flush=True)
 
 ALL_CLASSES = [
     "AnnualCrop", "Forest", "HerbaceousVegetation", "Highway", "Industrial",

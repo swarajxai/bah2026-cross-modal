@@ -134,23 +134,47 @@ function detectModalityByName(name) {
   return 'optical';
 }
 
-function handleFile(f) {
+async function handleFile(f) {
   selectedFile = f;
   lastQueryFilename = f.name;
-  const url = URL.createObjectURL(f);
   const modality = detectModalityByName(f.name);
+  const isTif = /\.tiff?$/i.test(f.name);
 
-  // update query preview
+  // Show loaded-state placeholders immediately so the UI doesn't flash
+  // the empty dropzone while we fetch the preview.
   dropzone.querySelector('.dz-empty').style.display = 'none';
   dropzone.querySelector('.dz-loaded').style.display = 'block';
-  previewImg.src = url;
-
-  // update viewport
-  viewportImg.src = url;
-  viewportImg.style.display = 'block';
   viewportEmpty.style.display = 'none';
 
-  // metadata
+  let previewSrc = '';
+  if (isTif) {
+    // Browsers can't render .tif/.tiff via <img>. Ask the backend to do
+    // the same bands-4-3-2 false-color rendering the gallery uses.
+    try {
+      const fd = new FormData();
+      fd.append('file', f);
+      const r = await fetch('/api/preview', { method: 'POST', body: fd });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const blob = await r.blob();
+      previewSrc = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload  = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('FileReader failed'));
+        reader.readAsDataURL(blob);
+      });
+    } catch (e) {
+      log('ERR', `PREVIEW RENDER FAILED: ${e.message}`, 'error');
+    }
+  } else {
+    // .jpg / .png / .jpeg — native browser rendering works
+    previewSrc = URL.createObjectURL(f);
+  }
+
+  previewImg.src  = previewSrc;
+  viewportImg.src = previewSrc;
+  viewportImg.style.display = previewSrc ? 'block' : 'none';
+
+  // metadata — use the resolved preview src so naturalWidth/Height are correct
   const img = new Image();
   img.onload = () => {
     $('metaSensor').textContent   = MODALITY[modality].label;
@@ -163,7 +187,7 @@ function handleFile(f) {
     $('metaFilename').textContent = f.name.length > 22 ? f.name.slice(0, 20) + '..' : f.name;
     log('QUERY', `IMAGE LOADED: ${f.name} (${MODALITY[modality].short})`, 'system');
   };
-  img.src = url;
+  img.src = previewSrc || '';
 
   $('queryStatus').textContent = 'LOADED';
   $('queryStatus').style.color = 'var(--border)';
